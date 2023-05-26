@@ -49,14 +49,24 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
       Lightning.Jobs.create_job(%{
         name: "IndividualDataSource To Individual",
         body: """
-sql(state => `INSERT INTO individual_individual(
-"UUID", "isDeleted", version, "UserCreatedUUID", "UserUpdatedUUID",
-"Json_ext", first_name, last_name, dob
-)
-SELECT gen_random_uuid(), false, 1, ${state.data.userUUID}, ${state.data.userUUID},
-"Json_ext", "Json_ext"->'name', "Json_ext" -> 'surname', to_date("Json_ext" ->> 'dob', 'YYYY-mm-dd')
-FROM individual_individualdatasource
-WHERE source_name=${state.data.sourceName} and source_type=${state.data.sourceType};`, { writeSql: true });
+        sql(state => `BEGIN;
+        WITH new_entry AS (
+          INSERT INTO individual_individual(
+          "UUID", "isDeleted", version, "UserCreatedUUID", "UserUpdatedUUID",
+          "Json_ext", first_name, last_name, dob
+          )
+          SELECT gen_random_uuid(), false, 1, ${state.data.userUUID}, ${state.data.userUUID},
+          "Json_ext", "Json_ext"->'name', "Json_ext" -> 'surname', to_date("Json_ext" ->> 'dob', 'YYYY-mm-dd')
+          FROM individual_individualdatasource
+          WHERE source_name=${state.data.sourceName} and source_type=${state.data.sourceType} and individual_id is null and "isDeleted"=False
+            RETURNING "UUID"
+        )
+        UPDATE individual_individualdatasource
+        SET individual_id = new_entry."UUID"
+        FROM new_entry
+        WHERE source_name=${state.data.sourceName} and source_type=${state.data.sourceType} and individual_id is null and "isDeleted"=False; -- specify the condition to identify which row(s) to update in Table A
+
+        COMMIT;`, { writeSql: true })
 """,
         adaptor: "@openfn/language-postgresql@latest",
         trigger: %{type: "webhook"},
