@@ -50,7 +50,7 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
         name: "BeneficiariesFileUpload",
         body: """
         sql(state => `
-        DO $$
+        DO \$\$
         declare
             current_upload_id UUID := '${state.data.upload_uuid}'::UUID;
             userUUID UUID := '${state.data.user_uuid}'::UUID;
@@ -70,7 +70,7 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
 
             SELECT ARRAY_AGG("UUID") INTO failing_entries_last_name
             FROM individual_individualdatasource
-            WHERE upload_id=current_upload_id and individual_id is null and "isDeleted"=False AND NOT "Json_ext" ? 'second_name';
+            WHERE upload_id=current_upload_id and individual_id is null and "isDeleted"=False AND NOT "Json_ext" ? 'last_name';
 
             SELECT ARRAY_AGG("UUID") INTO failing_entries_dob
             FROM individual_individualdatasource
@@ -107,27 +107,28 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
                       "Json_ext", first_name, last_name, dob
                       )
                       SELECT gen_random_uuid(), false, 1, userUUID, userUUID,
-                      "Json_ext", "Json_ext"->'first_name', "Json_ext" -> 'second_name', to_date("Json_ext" ->> 'dob', 'YYYY-MM-DD')
+                      "Json_ext", "Json_ext"->>'first_name', "Json_ext" ->> 'last_name', to_date("Json_ext" ->> 'dob', 'YYYY-MM-DD')
                       FROM individual_individualdatasource
-                      WHERE upload_id=current_upload_id and individual_id is null and "isDeleted"=False AND "Json_ext" ? 'income'
+                      WHERE upload_id=current_upload_id and individual_id is null and "isDeleted"=False
                         RETURNING "UUID"
-                    ),
-                        new_entry_social_protection_beneficiary AS (
-                          INSERT INTO social_protection_beneficiary(
-                          "UUID", "isDeleted", "Json_ext", "DateCreated", "DateUpdated", version, "DateValidFrom", "DateValidTo", status, "benefit_plan_id", "individual_id", "UserCreatedUUID", "UserUpdatedUUID"
-                          )
-                          SELECT gen_random_uuid(), false, iids."Json_ext" - 'first_name' - 'second_name' - 'dob', NOW(), NOW(), 1, NOW(), NULL, 'POTENTIAL', benefitPlan, new_entry."UUID", userUUID, userUUID
-                          FROM individual_individualdatasource as iids, new_entry
-                          WHERE iids.upload_id=current_upload_id and iids.individual_id is null and iids."isDeleted"=False
-                            RETURNING "UUID"
-                        )
+                    )
                     UPDATE individual_individualdatasource
                     SET individual_id = new_entry."UUID"
                     FROM new_entry
                     WHERE upload_id=current_upload_id and individual_id is null and "isDeleted"=False;
 
-                    update individual_individualdatasourceupload set status='SUCCESS', error='{}' where "UUID" = '6579709e-7e5d-4a3a-b965-fa5bcd017e94';
-                EXCEPTION
+
+                    with new_entry_2 as (INSERT INTO social_protection_beneficiary(
+                    "UUID", "isDeleted", "Json_ext", "DateCreated", "DateUpdated", version, "DateValidFrom", "DateValidTo", status, "benefit_plan_id", "individual_id", "UserCreatedUUID", "UserUpdatedUUID"
+                    )
+                    SELECT gen_random_uuid(), false, iids."Json_ext" - 'first_name' - 'last_name' - 'dob', NOW(), NOW(), 1, NOW(), NULL, 'POTENTIAL', benefitPlan, new_entry."UUID", userUUID, userUUID
+                    FROM individual_individualdatasource iids right join individual_individual new_entry on new_entry."UUID" = iids.individual_id
+                    WHERE iids.upload_id=current_upload_id and iids."isDeleted"=false
+                    returning "UUID")
+
+
+                    update individual_individualdatasourceupload set status='SUCCESS', error='{}' where "UUID" = current_upload_id;
+                    EXCEPTION
                     WHEN OTHERS then
 
                     update individual_individualdatasourceupload set status='FAIL' where "UUID" = current_upload_id;
@@ -140,7 +141,7 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
                         WHERE "UUID" = current_upload_id;
                 END;
             END IF;
-        END $$;
+        END \$\$;
         `, { writeSql: true })
 """,
         adaptor: "@openfn/language-postgresql@latest",
