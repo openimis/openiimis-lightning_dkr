@@ -28,8 +28,13 @@ defmodule Lightning.ImisSetupScript do
     Lightning.Repo.exists?(from d in "users")
   end
 
-  defp data_exists_in_table_projects? do
+  defp example_data_exists_in_table_projects? do
     Lightning.Repo.exists?(from d in "projects", where: d.name == "imisstarterproject")
+  end
+
+
+  defp beneficiary_upload_data_exists_in_table_projects? do
+    Lightning.Repo.exists?(from d in "projects", where: d.name == "imisbenefitplanworkflows")
   end
 
 
@@ -59,11 +64,18 @@ defmodule Lightning.ImisSetupScript do
       IO.puts("Users exists.")
     end
 
-    unless data_exists_in_table_projects?() do
+    unless example_data_exists_in_table_projects?() do
       script_paths = ["imisSetupScripts/CreateSetupProject.exs"]
       execute_scripts(script_paths)
     else
       IO.puts("Imis starter project already exists.")
+    end
+
+    unless beneficiary_upload_data_exists_in_table_projects?() do
+      script_paths = ["imisSetupScripts/CreateBenefitPlanProjects.exs"]
+      execute_scripts(script_paths)
+    else
+      IO.puts("Imis Beneficiary Workflows already exists.")
     end
 
   end
