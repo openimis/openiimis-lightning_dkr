@@ -101,21 +101,24 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
             -- If no invalid entries, then proceed with the data manipulation
             ELSE
                 BEGIN
-                    WITH new_entry AS (
-                      INSERT INTO individual_individual(
-                      "UUID", "isDeleted", version, "UserCreatedUUID", "UserUpdatedUUID",
-                      "Json_ext", first_name, last_name, dob
-                      )
-                      SELECT gen_random_uuid(), false, 1, userUUID, userUUID,
-                      "Json_ext", "Json_ext"->>'first_name', "Json_ext" ->> 'last_name', to_date("Json_ext" ->> 'dob', 'YYYY-MM-DD')
-                      FROM individual_individualdatasource
-                      WHERE upload_id=current_upload_id and individual_id is null and "isDeleted"=False
-                        RETURNING "UUID"
+                  WITH new_entry AS (
+                    INSERT INTO individual_individual(
+                    "UUID", "isDeleted", version, "UserCreatedUUID", "UserUpdatedUUID",
+                    "Json_ext", first_name, last_name, dob
                     )
-                    UPDATE individual_individualdatasource
-                    SET individual_id = new_entry."UUID"
-                    FROM new_entry
-                    WHERE upload_id=current_upload_id and individual_id is null and "isDeleted"=False;
+                    SELECT gen_random_uuid(), false, 1, userUUID, userUUID,
+                    "Json_ext", "Json_ext"->>'first_name', "Json_ext" ->> 'last_name', to_date("Json_ext" ->> 'dob', 'YYYY-MM-DD')
+                    FROM individual_individualdatasource
+                    WHERE upload_id=current_upload_id and individual_id is null and "isDeleted"=False
+                    RETURNING "UUID", "Json_ext"  -- also return the Json_ext
+                  )
+                  UPDATE individual_individualdatasource
+                  SET individual_id = new_entry."UUID"
+                  FROM new_entry
+                  WHERE upload_id=current_upload_id 
+                    and individual_id is null 
+                    and "isDeleted"=False 
+                    and individual_individualdatasource."Json_ext" = new_entry."Json_ext";  -- match on Json_ext
 
 
                     with new_entry_2 as (INSERT INTO social_protection_beneficiary(
@@ -125,8 +128,8 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
                     FROM individual_individualdatasource iids right join individual_individual new_entry on new_entry."UUID" = iids.individual_id
                     WHERE iids.upload_id=current_upload_id and iids."isDeleted"=false
                     returning "UUID")
-
-
+                    
+                    
                     update individual_individualdatasourceupload set status='SUCCESS', error='{}' where "UUID" = current_upload_id;
                     EXCEPTION
                     WHEN OTHERS then
@@ -143,6 +146,7 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
             END IF;
         END \$\$;
         `, { writeSql: true })
+)
 """,
         adaptor: "@openfn/language-postgresql@latest",
         trigger: %{type: "webhook"},
