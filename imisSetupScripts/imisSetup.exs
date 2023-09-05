@@ -37,6 +37,10 @@ defmodule Lightning.ImisSetupScript do
     Lightning.Repo.exists?(from d in "projects", where: d.name == "imisbenefitplanworkflows")
   end
 
+  defp openimis_coremis_payment_adaptor_exists_in_table_projects? do
+    Lightning.Repo.exists?(from d in "projects", where: d.name == "openimis-coremis-payment-adaptor")
+  end
+
 
   defp execute_scripts(script_paths) do
     Enum.each(script_paths, fn script_path ->
@@ -76,6 +80,13 @@ defmodule Lightning.ImisSetupScript do
       execute_scripts(script_paths)
     else
       IO.puts("Imis Beneficiary Workflows already exists.")
+    end
+
+    unless openimis_coremis_payment_adaptor_exists_in_table_projects?() do
+      script_paths = ["imisSetupScripts/CreatePaymentAdaptorProject.exs"]
+      execute_scripts(script_paths)
+    else
+      IO.puts("Imis CoreMIS Payment Adaptor project already exists.")
     end
 
   end
