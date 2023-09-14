@@ -92,6 +92,28 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
         // Necessary data can be obtained from reference in state object
         // use functions PUT, POST, GET etc that are available based on docs of 'common' adaptor
         state.responseData = {"success": "true", "data": []}
+        var bills = state.references[0].bills.split(',');
+
+        // Generate a random number between 0 and 1
+        var randomValue = Math.random();
+        // Convert the random number to either 0 or 1
+        var result = randomValue < 0.5 ? 0 : 1;
+
+        var rejectedBills = [];
+        // Check if there are at least 2 bills in the array
+        if (result === 1) {
+            if (bills.length >= 2) {
+                // Select the last two bills
+                var lastTwoBills = bills.slice(-2);
+                // Now 'lastTwoBills' will contain the last two bills from the array
+                rejectedBills = lastTwoBills;
+            } else if (bills.length === 1) {
+                // If there's only one bill, select that bill
+                rejectedBills = bills[0];
+            }
+        }
+
+        state.rejectedBills = arrayToString(rejectedBills,',');
         """,
         adaptor: "@openfn/language-common@latest",
         trigger: %{
@@ -147,7 +169,7 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
         body:
         """
         post('http://backend:8000/api/payroll/send_callback_to_openimis/', {
-          body: { "payroll_id": state.references[0].payroll_uuid, "response_from_gateway": state.responseData },
+          body: { "payroll_id": state.references[0].payroll_uuid, "response_from_gateway": state.responseData, "rejected_bills": state.rejectedBills },
           headers: {'content-type': 'application/json', "Authorization": `Bearer ${state.response.data.token}`}
         })
         """,
