@@ -222,8 +222,7 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
         },
         enabled: true,
         workflow_id: workflow.id,
-        project_credential_id: List.first(credential.project_credentials).id,
-        upstream_job_id: job_2.id
+        project_credential_id: List.first(credential.project_credentials).id
       })
 
       {:ok, job_5} =
