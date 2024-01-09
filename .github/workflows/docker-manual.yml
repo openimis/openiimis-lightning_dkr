@@ -1,0 +1,23 @@
+name: create manual docker image 
+on:
+  workflow_dispatch:
+    inputs:   
+      tag:
+        required: true
+        description: Tag added to image on ghcr.io
+
+jobs:
+  publish-manual-docker-image:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Build the openimis backend  Docker image
+      run: |
+         docker build -f Dockerfile-dev- . --tag ghcr.io/openimis/openimis-lightning_dkr:${{ github.event.inputs.tag }}
+         docker push ghcr.io/openimis/openimis-lightning_dkr:${{ github.event.inputs.tag }}
