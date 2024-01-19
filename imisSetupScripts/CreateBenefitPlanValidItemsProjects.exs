@@ -21,7 +21,7 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
 
     {:ok, workflow} =
       Lightning.Workflows.create_workflow(%{
-        name: "Benefit Plan Upload",
+        name: "beneficiary-import-valid-items",
         project_id: project.id
       })
 
@@ -46,83 +46,15 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
       })
     {:ok, job_1} =
       Lightning.Jobs.create_job(%{
-        name: "get_jwt_token",
-        body:
-        """
-        post('http://backend:8000/api/api_fhir_r4/login/', {
-          body: { "username": "<USERNAME>", "password": "<PASSWORD>" },
-          headers: {'content-type': 'application/json'}
-        })
-        """,
-        adaptor: "@openfn/language-http@latest",
-        trigger: %{
-          type: "webhook",
-        },
-        enabled: true,
-        workflow_id: workflow.id,
-        project_credential_id: List.first(credential.project_credentials).id
-      })
-
-      {:ok, job_2} =
-      Lightning.Jobs.create_job(%{
-        name: "Validation",
-        body:
-        """
-        post('http://backend:8000/api/social_protection/validate_import_beneficiaries/', {
-        body: {
-          "benefit_plan": state.references[0].benefit_plan_uuid,
-          "upload_id": state.references[0].upload_uuid
-        },
-        headers: {
-          'Authorization': `Bearer ${state.response.data.token}`,
-          'Content-Type': 'application/json'
-        }
-        })
-
-        """,
-        adaptor: "@openfn/language-http@latest",
-        trigger: %{
-          type: "on_job_success",
-          upstream_job_id: job_1.id
-        },
-        enabled: true,
-        workflow_id: workflow.id,
-        project_credential_id: List.first(credential.project_credentials).id,
-        upstream_job_id: job_1.id
-      })
-
-      {:ok, job_3} =
-      Lightning.Jobs.create_job(%{
-        name: "Check if Errors Are Flagged",
-        body:
-        """
-        var invalid_items = state.data.summary_invalid_items;
-        if (invalid_items.length > 0) {
-          throw new Error('Invalid items found!');
-        }
-        """,
-        adaptor: "@openfn/language-common@latest",
-        trigger: %{
-          type: "on_job_success",
-          upstream_job_id: job_2.id
-        },
-        enabled: true,
-        workflow_id: workflow.id,
-        project_credential_id: List.first(credential.project_credentials).id,
-        upstream_job_id: job_2.id
-      })
-
-      {:ok, job_4} =
-      Lightning.Jobs.create_job(%{
         name: "BeneficiariesFileUpload",
         body:
         """
                 sql(state => `
         DO $$
         declare
-            current_upload_id UUID := '${state.references[0].upload_uuid}'::UUID;
-            userUUID UUID := '${state.references[0].user_uuid}'::UUID;
-            benefitPlan UUID := '${state.references[0].benefit_plan_uuid}'::UUID;
+            current_upload_id UUID := '${state.data.upload_uuid}'::UUID;
+            userUUID UUID := '${state.data.user_uuid}'::UUID;
+            benefitPlan UUID := '${state.data.benefit_plan_uuid}'::UUID;
             failing_entries UUID[];
             json_schema jsonb;
             failing_entries_invalid_json UUID[];
@@ -177,7 +109,7 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
                     SELECT gen_random_uuid(), false, 1, userUUID, userUUID,
                     "Json_ext", "Json_ext"->>'first_name', "Json_ext" ->> 'last_name', to_date("Json_ext" ->> 'dob', 'YYYY-MM-DD')
                     FROM individual_individualdatasource
-                    WHERE upload_id=current_upload_id and individual_id is null and "isDeleted"=False
+                    WHERE upload_id=current_upload_id and individual_id is null and "isDeleted"=False and validations ->> 'validation_errors' = '[]'
                     RETURNING "UUID", "Json_ext"  -- also return the Json_ext
                   )
                   UPDATE individual_individualdatasource
@@ -186,8 +118,8 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
                   WHERE upload_id=current_upload_id
                     and individual_id is null
                     and "isDeleted"=False
-                    and individual_individualdatasource."Json_ext" = new_entry."Json_ext";  -- match on Json_ext
-
+                    and individual_individualdatasource."Json_ext" = new_entry."Json_ext"  -- match on Json_ext
+                    and validations ->> 'validation_errors' = '[]';
 
                     with new_entry_2 as (INSERT INTO social_protection_beneficiary(
                     "UUID", "isDeleted", "Json_ext", "DateCreated", "DateUpdated", version, "DateValidFrom", "DateValidTo", status, "benefit_plan_id", "individual_id", "UserCreatedUUID", "UserUpdatedUUID"
@@ -198,7 +130,7 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
                     returning "UUID")
 
 
-                    update individual_individualdatasourceupload set status='SUCCESS', error='{}' where "UUID" = current_upload_id;
+                    update individual_individualdatasourceupload set status='PARTIAL_SUCCESS', error='{}' where "UUID" = current_upload_id;
                     EXCEPTION
                     WHEN OTHERS then
 
@@ -217,58 +149,7 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
         """,
         adaptor: "@openfn/language-postgresql@latest",
         trigger: %{
-          type: "on_job_success",
-          upstream_job_id: job_3.id
-        },
-        enabled: true,
-        workflow_id: workflow.id,
-        project_credential_id: List.first(credential.project_credentials).id
-      })
-
-      {:ok, job_5} =
-      Lightning.Jobs.create_job(%{
-        name: "Create Task to import valid items",
-        body:
-        """
-        post('http://backend:8000/api/social_protection/create_task_with_importing_valid_items/', {
-          body: {
-            "benefit_plan": state.references[0].benefit_plan_uuid,
-            "upload_id": state.references[0].upload_uuid,
-          },
-          headers: {
-            'Authorization': `Bearer ${state.references[1].token}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        """,
-        adaptor: "@openfn/language-http@latest",
-        trigger: %{
-          type: "on_job_failure",
-          upstream_job_id: job_3.id
-        },
-        enabled: true,
-        workflow_id: workflow.id,
-        project_credential_id: List.first(credential.project_credentials).id
-      })
-
-      {:ok, job_6} =
-      Lightning.Jobs.create_job(%{
-        name: "Change Status Of Upload To Waiting For Acceptance",
-        body:
-        """
-                sql(state => `
-        DO $$
-        declare
-            current_upload_id UUID := '${state.references[0].upload_uuid}'::UUID;
-        BEGIN
-            update individual_individualdatasourceupload set status='WAITING_FOR_VERIFICATION' where "UUID" = current_upload_id;
-        END $$;
-        `, { writeSql: true })
-        """,
-        adaptor: "@openfn/language-postgresql@latest",
-        trigger: %{
-          type: "on_job_success",
-          upstream_job_id: job_5.id
+          type: "webhook",
         },
         enabled: true,
         workflow_id: workflow.id,
@@ -283,7 +164,7 @@ defmodule Lightning.SetupIProjectsMISWorkflow do
   end
   def run do
     create_starter_project(
-      "imisbenefitplanworkflows",
+      "beneficiary-import-valid-items",
       Lightning.Repo.all(from u in Lightning.Accounts.User, where: u.email == ^System.fetch_env!("IMIS_USER_EMAIL"))
       |> Enum.map(&%{user_id: &1.id, role: :admin})
     )
