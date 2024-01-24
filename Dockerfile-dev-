@@ -3,10 +3,10 @@
 #   - https://github.com/OpenFn/Lightning Dockerfile-dev
 
 
-ARG ELIXIR_VERSION=1.14.1
-ARG OTP_VERSION=25.1.2
-ARG DEBIAN_VERSION=bullseye-20221004-slim
-ARG NODE_VERSION=18.12.0
+ARG ELIXIR_VERSION=1.15.4
+ARG OTP_VERSION=26.0.2
+ARG DEBIAN_VERSION=bookworm-20230612
+ARG NODE_VERSION=18.17.1
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
@@ -20,7 +20,7 @@ RUN apt-get update -y && apt-get install -y \
 
 # COPY bin/install_node bin/install_node
 # Build from local source 
-RUN git clone https://github.com/OpenFn/Lightning
+RUN git clone https://github.com/OpenFn/Lightning --branch v0.12.2 --depth 1
 RUN mv Lightning app
 
 # prepare build dir
@@ -32,7 +32,7 @@ RUN apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 
 # Fixed version
-RUN git checkout 1302484e2f9cb46c0de623ac642ca3d4882d7e62
+#RUN git checkout 1302484e2f9cb46c0de623ac642ca3d4882d7e62
 
 
 # Remaining acions are taken directly from https://github.com/OpenFn/Lightning Dockerfile-dev
