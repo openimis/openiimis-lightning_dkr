@@ -20,7 +20,7 @@ RUN apt-get update -y && apt-get install -y \
 
 # COPY bin/install_node bin/install_node
 # Build from local source 
-RUN git clone https://github.com/OpenFn/Lightning
+RUN git clone https://github.com/OpenFn/Lightning --branch v0.12.2 --depth 1
 RUN mv Lightning app
 
 # prepare build dir
