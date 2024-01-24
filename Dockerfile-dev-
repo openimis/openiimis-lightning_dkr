@@ -32,7 +32,7 @@ RUN apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 
 # Fixed version
-RUN git checkout 1302484e2f9cb46c0de623ac642ca3d4882d7e62
+#RUN git checkout 1302484e2f9cb46c0de623ac642ca3d4882d7e62
 
 
 # Remaining acions are taken directly from https://github.com/OpenFn/Lightning Dockerfile-dev
