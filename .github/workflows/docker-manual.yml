@@ -5,6 +5,15 @@ on:
       tag:
         required: true
         description: Tag added to image on ghcr.io
+      env:
+        type: choice
+        description: Select destination brand
+        required: true
+        options:
+          - development
+          - production
+        default: development
+        
 
 jobs:
   publish-manual-docker-image:
@@ -19,5 +28,5 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     - name: Build the openimis backend  Docker image
       run: |
-         docker build -f Dockerfile-dev- . --tag ghcr.io/openimis/openimis-lightning_dkr:${{ github.event.inputs.tag }}
+         docker build -f Dockerfile-dev- . --build-arg="MIX_ENV=dev" --build-arg="NODE_ENV=${{ github.event.inputs.env }}" --tag ghcr.io/openimis/openimis-lightning_dkr:${{ github.event.inputs.tag }}
          docker push ghcr.io/openimis/openimis-lightning_dkr:${{ github.event.inputs.tag }}
