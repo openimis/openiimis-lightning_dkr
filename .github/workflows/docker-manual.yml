@@ -28,5 +28,5 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     - name: Build the openimis backend  Docker image
       run: |
-         docker build -f Dockerfile-dev- . --build-arg="MIX_ENV=dev" --build-arg="NODE_ENV=${{ github.event.inputs.env }}" --tag ghcr.io/openimis/openimis-lightning_dkr:${{ github.event.inputs.tag }}
+         docker build -f Dockerfile-dev- . --target="dev" --build-arg="MIX_ENV=dev" --build-arg="NODE_ENV=${{ github.event.inputs.env }}" --tag ghcr.io/openimis/openimis-lightning_dkr:${{ github.event.inputs.tag }}
          docker push ghcr.io/openimis/openimis-lightning_dkr:${{ github.event.inputs.tag }}
